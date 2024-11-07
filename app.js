@@ -5,20 +5,25 @@ const proxyUrl = 'https://mi-proxy-cors-727443ca806f.herokuapp.com/';
 
 // Verifica si la Geolocalización es soportada
 if ('geolocation' in navigator) {
+  requestLocation();
+} else {
+  document.getElementById('status').textContent = 'Geolocalización no es soportada por tu navegador.';
+}
+
+// Función para solicitar la ubicación
+function requestLocation() {
   navigator.geolocation.getCurrentPosition(success, error, {
     enableHighAccuracy: true,
     timeout: 10000,
     maximumAge: 0
   });
-} else {
-  document.getElementById('status').textContent = 'Geolocalización no es soportada por su navegador.';
 }
 
 // Función de éxito
 function success(position) {
   const latitude = position.coords.latitude;
   const longitude = position.coords.longitude;
-  document.getElementById('status').textContent = 'ubi detectada. buscando info';
+  document.getElementById('status').textContent = 'ubi detectada, buscando info';
 
   // Procede a encontrar el área de cobertura
   findSpatialFeature(latitude, longitude);
@@ -27,7 +32,22 @@ function success(position) {
 // Función de error
 function error(err) {
   console.warn(`ERROR(${err.code}): ${err.message}`);
-  document.getElementById('status').textContent = 'No se pudo obtener tu ubicación. Por favor, asegúrate de que el acceso a la ubicación está permitido en tu dispositivo y navegador.';
+  let errorMessage = 'No se pudo obtener tu ubicación.';
+
+  if (err.code === err.PERMISSION_DENIED) {
+    errorMessage += ' Has denegado el acceso a la ubicación.';
+    document.getElementById('instruction').innerHTML = 'Por favor, habilita el acceso a la ubicación en tu dispositivo y navegador.<br>Para volver a intentarlo, <a href="#" onclick="requestLocation()">haz clic aquí</a>.';
+  } else if (err.code === err.POSITION_UNAVAILABLE) {
+    errorMessage += ' La información de ubicación no está disponible.';
+  } else if (err.code === err.TIMEOUT) {
+    errorMessage += ' La solicitud para obtener la ubicación ha caducado.';
+    document.getElementById('instruction').innerHTML = 'Por favor, asegúrate de tener una buena señal de GPS o conexión a Internet.<br>Para volver a intentarlo, <a href="#" onclick="requestLocation()">haz clic aquí</a>.';
+  } else {
+    errorMessage += ' Error desconocido.';
+  }
+
+  document.getElementById('status').textContent = errorMessage;
+  document.getElementById('status').classList.add('error');
 }
 
 // Función para encontrar la característica espacial (área de cobertura)
@@ -86,10 +106,9 @@ function queryOutageTable(alimentadorId) {
     })
     .then(data => {
       if (data.features && data.features.length > 0) {
-        const outageInfo = data.features[0].attributes;
         displayOutageInfo(alimentadorId, data.features);
       } else {
-        document.getElementById('status').textContent = 'no hay desconexiones programadas para tu área :)';
+        document.getElementById('status').textContent = 'No hay desconexiones programadas para tu área.';
         // Limpia información previa si existe
         document.getElementById('zoneName').textContent = '';
         document.getElementById('schedule').textContent = '';

@@ -11,7 +11,8 @@
             font-family: Arial, sans-serif;
             text-align: center;
             padding: 20px;
-            color: #0011ff; /* Azul fosforescente */
+            color: #0140ff; /* Azul fosforescente */
+            background-color: #ffffff; /* Fondo negro para mayor contraste */
         }
         #status {
             font-weight: bold;
@@ -20,14 +21,23 @@
         #zoneName, #schedule, #countdown {
             margin: 10px 0;
         }
+        .error {
+            color: red;
+        }
+        .instruction {
+            font-size: 14px;
+            margin-top: 10px;
+            color: #ffffff;
+        }
     </style>
 </head>
 <body>
     <h1>a qué hora vuelve la luz?</h1>
-    <div id="status">Obteniendo su ubicación...</div>
+    <div id="status">Obteniendo tu ubicación...</div>
     <div id="zoneName"></div>
     <div id="schedule"></div>
     <div id="countdown"></div>
+    <div id="instruction" class="instruction"></div>
 
     <!-- Incluye tu script app.js después de Luxon -->
     <script src="app.js"></script>
