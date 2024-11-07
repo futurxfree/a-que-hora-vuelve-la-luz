@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>a qué hora vuelve la luz?</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Incluye la librería Luxon -->
+    <script src="https://cdn.jsdelivr.net/npm/luxon@2.5.0/build/global/luxon.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            color: #0011ff; /* Azul fosforescente */
+        }
+        #status {
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        #zoneName, #schedule, #countdown {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>a qué hora vuelve la luz?</h1>
+    <div id="status">Obteniendo su ubicación...</div>
+    <div id="zoneName"></div>
+    <div id="schedule"></div>
+    <div id="countdown"></div>
+
+    <!-- Incluye tu script app.js después de Luxon -->
+    <script src="app.js"></script>
+</body>
+</html>
