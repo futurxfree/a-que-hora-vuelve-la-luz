@@ -2,42 +2,54 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>a qué hora vuelve la luz?</title>
+    <title>¿A qué hora vuelve la luz?</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Incluye la librería Luxon -->
     <script src="https://cdn.jsdelivr.net/npm/luxon@2.5.0/build/global/luxon.min.js"></script>
+    <!-- Incluye Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <!-- Incluye Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             padding: 20px;
-            color: #0140ff; /* Azul fosforescente */
-            background-color: #ffffff; /* Fondo negro para mayor contraste */
+            color: blue; /* Establece el color azul para todo el texto */
         }
         #status {
             font-weight: bold;
             margin-bottom: 20px;
         }
-        #zoneName, #schedule, #countdown {
+        #zoneName, #schedule {
             margin: 10px 0;
         }
-        .error {
-            color: red;
+        #schedule {
+            white-space: pre-line; /* Permite que se muestren las fechas en líneas separadas */
         }
-        .instruction {
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        #adjustLocationMessage {
+            color: gray;
             font-size: 14px;
-            margin-top: 10px;
-            color: #ffffff;
+            margin-top: 30px; /* Ajusta el espacio superior para crear dos saltos de línea */
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
-    <h1>a qué hora vuelve la luz?</h1>
+    <h1>¿a qué hora vuelve la luz?</h1>
     <div id="status">Obteniendo tu ubicación...</div>
     <div id="zoneName"></div>
     <div id="schedule"></div>
-    <div id="countdown"></div>
-    <div id="instruction" class="instruction"></div>
+    
+    <!-- Mensaje de ajuste de ubicación con espacio adicional arriba -->
+    <div id="adjustLocationMessage">Si es que tu ubicación no es precisa, ajústala haciendo clic en el mapa.</div>
+    
+    <div id="map"></div>
 
     <!-- Incluye tu script app.js después de Luxon -->
     <script src="app.js"></script>

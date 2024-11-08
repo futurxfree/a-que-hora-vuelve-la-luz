@@ -1,78 +1,81 @@
 // app.js
 
-// Define el proxyUrl globalmente
-const proxyUrl = 'https://mi-proxy-cors-727443ca806f.herokuapp.com/';
+// Inicializa el mapa centrado inicialmente en una ubicación predeterminada
+const map = L.map('map').setView([-0.1807, -78.4678], 12); // Quito como ubicación predeterminada
 
-// Verifica si la Geolocalización es soportada
+// Agrega el mapa de OpenStreetMap
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+let marker;
+
+// Intenta obtener la ubicación actual del usuario
 if ('geolocation' in navigator) {
-  requestLocation();
+  navigator.geolocation.getCurrentPosition(
+    function(position) {
+      const { latitude, longitude } = position.coords;
+
+      // Centra el mapa en la ubicación actual del usuario
+      map.setView([latitude, longitude], 15);
+
+      // Coloca un marcador rojo en la ubicación actual
+      marker = L.marker([latitude, longitude], { color: 'red' }).addTo(map);
+      marker.bindPopup("Tu ubicación actual").openPopup();
+
+      document.getElementById('status').textContent = 'Ubicación detectada. Puedes ajustar tu posición en el mapa.';
+
+      // Llama a la función para buscar el área de cobertura usando la ubicación detectada
+      findSpatialFeature(latitude, longitude);
+    },
+    function(error) {
+      console.error("Error al obtener la ubicación:", error);
+      document.getElementById('status').textContent = 'No se pudo obtener la ubicación automática. Selecciona tu ubicación manualmente en el mapa.';
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
 } else {
   document.getElementById('status').textContent = 'Geolocalización no es soportada por tu navegador.';
 }
 
-// Función para solicitar la ubicación
-function requestLocation() {
-  navigator.geolocation.getCurrentPosition(success, error, {
-    enableHighAccuracy: true,
-    timeout: 10000,
-    maximumAge: 0
-  });
-}
+// Evento para permitir al usuario ajustar la ubicación haciendo clic en el mapa
+map.on('click', function (e) {
+  const { lat, lng } = e.latlng;
 
-// Función de éxito
-function success(position) {
-  const latitude = position.coords.latitude;
-  const longitude = position.coords.longitude;
-  document.getElementById('status').textContent = 'ubi detectada, buscando info';
-
-  // Procede a encontrar el área de cobertura
-  findSpatialFeature(latitude, longitude);
-}
-
-// Función de error
-function error(err) {
-  console.warn(`ERROR(${err.code}): ${err.message}`);
-  let errorMessage = 'No se pudo obtener tu ubicación.';
-
-  if (err.code === err.PERMISSION_DENIED) {
-    errorMessage += ' Has denegado el acceso a la ubicación.';
-    document.getElementById('instruction').innerHTML = 'Por favor, habilita el acceso a la ubicación en tu dispositivo y navegador.<br>Para volver a intentarlo, <a href="#" onclick="requestLocation()">haz clic aquí</a>.';
-  } else if (err.code === err.POSITION_UNAVAILABLE) {
-    errorMessage += ' La información de ubicación no está disponible.';
-  } else if (err.code === err.TIMEOUT) {
-    errorMessage += ' La solicitud para obtener la ubicación ha caducado.';
-    document.getElementById('instruction').innerHTML = 'Por favor, asegúrate de tener una buena señal de GPS o conexión a Internet.<br>Para volver a intentarlo, <a href="#" onclick="requestLocation()">haz clic aquí</a>.';
+  if (marker) {
+    marker.setLatLng(e.latlng); // Mueve el marcador a la nueva posición
   } else {
-    errorMessage += ' Error desconocido.';
+    marker = L.marker(e.latlng, { color: 'red' }).addTo(map); // Crea un marcador rojo si no existe
   }
 
-  document.getElementById('status').textContent = errorMessage;
-  document.getElementById('status').classList.add('error');
-}
+  marker.bindPopup("Ubicación ajustada").openPopup();
+  document.getElementById('status').textContent = 'Ubicación ajustada manualmente. Buscando información...';
 
-// Función para encontrar la característica espacial (área de cobertura)
+  // Llama a la función para buscar el área de cobertura usando las coordenadas seleccionadas
+  findSpatialFeature(lat, lng);
+});
+
+// Function to find spatial feature (coverage area) without a proxy
 function findSpatialFeature(latitude, longitude) {
   const spatialLayerUrl = 'https://arcgis.eeq.com.ec/arcgis/rest/services/Hosted/Coberturas/FeatureServer';
   const queryUrl = `${spatialLayerUrl}/0/query?geometry=${longitude},${latitude}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&f=json`;
 
-  const fullUrl = proxyUrl + queryUrl;
-
-  fetch(fullUrl)
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
-    })
+  fetchWithRetry(queryUrl)
     .then(data => {
+      console.log("Coverage data received:", data); // Log data for debugging
       if (data.features && data.features.length > 0) {
         const feature = data.features[0];
         const attributes = feature.attributes;
         const alimentadorId = attributes.alimentadorid || attributes.ALIMENTADORID;
 
         if (alimentadorId) {
-          // Procede a consultar la tabla DESCONEXIONES
-          queryOutageTable(alimentadorId);
+          document.getElementById('zoneName').textContent = `Alimentador ID: ${alimentadorId}`;
+          queryOutageTable(alimentadorId); // Procede a consultar la tabla de desconexiones
         } else {
           document.getElementById('status').textContent = 'No se encontró el identificador del alimentador en tu ubicación.';
         }
@@ -86,33 +89,20 @@ function findSpatialFeature(latitude, longitude) {
     });
 }
 
-// Función para consultar la tabla DESCONEXIONES
+// Function to query the OUTAGES table without a proxy
 function queryOutageTable(alimentadorId) {
-  const DateTime = luxon.DateTime;
-  const todayStart = DateTime.now().setZone('America/Guayaquil').startOf('day').toMillis();
-
   const restServiceUrl = 'https://arcgis.eeq.com.ec/arcgis/rest/services/Hosted/DESCONEXIONES/FeatureServer';
-  const whereClause = encodeURIComponent(`alimentadorid='${alimentadorId}' AND fecha_desconexion >= ${todayStart}`);
+  const whereClause = encodeURIComponent(`alimentadorid='${alimentadorId}'`);
   const queryUrl = `${restServiceUrl}/0/query?where=${whereClause}&outFields=*&orderByFields=fecha_desconexion%20ASC&periodo_desconexion%20ASC&f=json`;
 
-  const fullUrl = proxyUrl + queryUrl;
-
-  fetch(fullUrl)
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
-    })
+  fetchWithRetry(queryUrl)
     .then(data => {
+      console.log("Outage data received:", data); // Log data for debugging
       if (data.features && data.features.length > 0) {
-        displayOutageInfo(alimentadorId, data.features);
+        displayAllOutages(data.features);
       } else {
-        document.getElementById('status').textContent = 'No hay desconexiones programadas para tu área.';
-        // Limpia información previa si existe
-        document.getElementById('zoneName').textContent = '';
+        document.getElementById('status').textContent = 'no hay desconexiones programadas para tu área :)';
         document.getElementById('schedule').textContent = '';
-        document.getElementById('countdown').textContent = '';
       }
     })
     .catch(error => {
@@ -121,91 +111,56 @@ function queryOutageTable(alimentadorId) {
     });
 }
 
-// Función para mostrar la información de la desconexión
-function displayOutageInfo(alimentadorId, outageFeatures) {
+// Retry logic for fetch requests
+function fetchWithRetry(url, retries = 2) {
+  return fetch(url)
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.json();
+    })
+    .catch(error => {
+      if (retries > 0) {
+        console.warn(`Retrying... (${retries} retries left)`);
+        return new Promise(resolve => setTimeout(resolve, 1000))
+          .then(() => fetchWithRetry(url, retries - 1));
+      } else {
+        throw error;
+      }
+    });
+}
+
+// Function to display all outage dates
+function displayAllOutages(outages) {
   const DateTime = luxon.DateTime;
+  const today = DateTime.now().setZone('America/Guayaquil').startOf('day');
 
   document.getElementById('status').textContent = '';
-  document.getElementById('zoneName').textContent = `Alimentador: ${alimentadorId}`;
+  document.getElementById('schedule').textContent = '';
 
-  let scheduleText = 'próximos horarios de desconexión :(\n';
+  let todayOutage = null;
+  const upcomingOutages = [];
 
-  outageFeatures.forEach((feature) => {
-    const outageInfo = feature.attributes;
-
-    // Crear el objeto DateTime directamente en la zona horaria 'America/Guayaquil'
-    const fechaDesconexion = DateTime.fromMillis(outageInfo.fecha_desconexion, { zone: 'America/Guayaquil' });
-
-    const periodoDesconexion = outageInfo.periodo_desconexion;
-
-    // Formatea la fecha
+  outages.forEach(outage => {
+    const fechaDesconexion = DateTime.fromMillis(outage.attributes.fecha_desconexion, { zone: 'America/Guayaquil' });
+    const periodoDesconexion = outage.attributes.periodo_desconexion;
     const fechaFormatted = fechaDesconexion.toFormat('dd/MM/yyyy');
 
-    scheduleText += `- ${fechaFormatted} ${periodoDesconexion}\n`;
+    if (fechaDesconexion.hasSame(today, 'day')) {
+      todayOutage = `día: ${fechaFormatted}, hora: ${periodoDesconexion}`;
+    } else if (fechaDesconexion > today) {
+      upcomingOutages.push(`día: ${fechaFormatted}, hora: ${periodoDesconexion}`);
+    }
   });
 
-  document.getElementById('schedule').textContent = scheduleText;
-
-  // Tomamos la primera desconexión para iniciar el contador
-  const firstOutage = outageFeatures[0].attributes;
-  const fechaDesconexion = DateTime.fromMillis(firstOutage.fecha_desconexion, { zone: 'America/Guayaquil' });
-  const periodoDesconexion = firstOutage.periodo_desconexion;
-
-  const endTime = calculateEndTime(fechaDesconexion, periodoDesconexion);
-  startCountdown(endTime);
-}
-
-// Función para calcular la hora de finalización basada en el periodo
-function calculateEndTime(startDateTime, period) {
-  const DateTime = luxon.DateTime;
-
-  // Suponiendo que el periodo está en el formato '15:00 a 18:00'
-  const timeRange = period.split(' a ');
-  if (timeRange.length === 2) {
-    const endTimeString = timeRange[1];
-    const [hours, minutes] = endTimeString.split(':').map(Number);
-
-    // Crea un objeto DateTime para la hora de finalización en la zona horaria 'America/Guayaquil'
-    const endDateTime = DateTime.fromObject(
-      {
-        year: startDateTime.year,
-        month: startDateTime.month,
-        day: startDateTime.day,
-        hour: hours,
-        minute: minutes,
-      },
-      { zone: 'America/Guayaquil' }
-    );
-
-    return endDateTime;
+  if (todayOutage) {
+    document.getElementById('schedule').textContent += `horario del corte de hoy:\n${todayOutage}\n\n`;
   } else {
-    // Maneja formato inesperado
-    return startDateTime;
-  }
-}
-
-// Función para iniciar la cuenta regresiva
-function startCountdown(endTime) {
-  let countdownInterval;
-
-  function updateCountdown() {
-    const DateTime = luxon.DateTime;
-    const now = DateTime.now().setZone('America/Guayaquil');
-
-    if (endTime > now) {
-      const timeRemaining = endTime.diff(now, ['hours', 'minutes', 'seconds']).toObject();
-
-      const hours = Math.floor(timeRemaining.hours);
-      const minutes = Math.floor(timeRemaining.minutes);
-      const seconds = Math.floor(timeRemaining.seconds);
-
-      document.getElementById('countdown').textContent = `Tiempo restante: ${hours}h ${minutes}m ${seconds}s`;
-    } else {
-      document.getElementById('countdown').textContent = 'deberías tener luz :)';
-      clearInterval(countdownInterval);
-    }
+    document.getElementById('schedule').textContent += `no hay cortes programados para hoy :)\n\n`;
   }
 
-  updateCountdown(); // Llamada inicial
-  countdownInterval = setInterval(updateCountdown, 1000); // Actualiza cada segundo
+  if (upcomingOutages.length > 0) {
+    document.getElementById('schedule').textContent += "próximos cortes:\n" + upcomingOutages.join('\n');
+  } else {
+    document.getElementById('schedule').textContent += "no hay próximos cortes programados.";
+  }
 }
